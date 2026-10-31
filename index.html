@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tirage Commandants MTG</title>
+    <style>
+        :root {
+            --bg: #0f0f12;
+            --card-bg: #1a1a22;
+            --accent: #c9a227;
+            --text: #e8e6e3;
+            --text-dim: #a0a0a8;
+            --success: #2ecc71;
+            --danger: #e74c3c;
+            --border: #2a2a35;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #0f0f12;
+            color: #e8e6e3;
+            line-height: 1.5;
+            min-height: 100vh;
+            position: relative;
+        }
+        /* Overlay retiré pour éviter les problèmes d'affichage */
+        header {
+            background: #1a1a22;
+            border-bottom: 1px solid var(--border);
+            padding: 1.5rem 1rem;
+            text-align: center;
+        }
+        header h1 { font-size: 1.8rem; color: var(--accent); margin-bottom: 0.3rem; }
+        header p { color: var(--text-dim); font-size: 0.95rem; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+        .section {
+            background: #1a1a22;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        .section h2 { font-size: 1.15rem; margin-bottom: 1rem; color: var(--accent); }
+        .controls { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+        input[type="text"], input[type="password"] {
+            padding: 0.65rem 0.9rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #121218;
+            color: var(--text);
+            font-size: 1rem;
+            flex: 1;
+            min-width: 180px;
+        }
+        button {
+            padding: 0.65rem 1.2rem;
+            border: none;
+            border-radius: 8px;
+            background: var(--accent);
+            color: #111;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.95rem;
+        }
+        button:hover:not(:disabled) { filter: brightness(1.1); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button.secondary { background: #2a2a35; color: var(--text); }
+        button.danger { background: var(--danger); color: white; }
+        #wheel-container {
+            display: none;
+            text-align: center;
+            margin: 1rem 0;
+        }
+        #wheel {
+            width: 280px;
+            height: 280px;
+            margin: 0 auto;
+            border-radius: 50%;
+            border: 8px solid var(--accent);
+            background: radial-gradient(circle, #2a1a0a 40%, #1a0f05 100%);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(201,162,39,0.4);
+        }
+        #wheel-inner {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--accent);
+            text-align: center;
+            padding: 1rem;
+            transition: none;
+        }
+        #wheel.spinning #wheel-inner {
+            animation: spinNames 0.08s linear infinite;
+        }
+        @keyframes spinNames {
+            0% { transform: rotate(0deg); opacity: 0.7; }
+            50% { opacity: 1; }
+            100% { transform: rotate(360deg); opacity: 0.7; }
+        }
+        .wheel-pointer {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 12px solid transparent;
+            border-right: 12px solid transparent;
+            border-top: 20px solid var(--accent);
+            z-index: 5;
+        }
+        .draw-card {
+            background: #121218;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 0.6rem;
+            width: 180px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            position: relative;
+            z-index: 1;
+        }
+        .draw-card:hover {
+            border-color: var(--accent);
+            transform: scale(1.45);
+            z-index: 10;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+        }
+        .draw-card img { width: 100%; border-radius: 6px; margin-bottom: 0.4rem; display: block; }
+        .draw-card .name { font-weight: 700; font-size: 0.85rem; line-height: 1.2; }
+        .status {
+            text-align: center;
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-weight: 500;
+        }
+        .status.info { background: #1a2a3a; color: #7eb8da; }
+        .status.success { background: #1a2a1a; color: var(--success); }
+        .status.error { background: #2a1a1a; color: var(--danger); }
+        .reg-item {
+            background: #121218;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+        .reg-item img { width: 55px; border-radius: 4px; }
+        .empty { color: var(--text-dim); font-style: italic; padding: 1rem; text-align: center; }
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.75);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.open { display: flex; }
+        .modal-content {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            width: 90%;
+            max-width: 420px;
+        }
+        .modal-content h3 { color: var(--accent); margin-bottom: 1rem; }
+        .form-row { margin-bottom: 0.75rem; }
+        .form-row label { display: block; margin-bottom: 0.3rem; font-size: 0.9rem; }
+        .hidden { display: none !important; }
+        .admin-link {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            font-size: 0.7rem;
+            color: #444;
+            cursor: pointer;
+            opacity: 0.4;
+            user-select: none;
+        }
+        .admin-link:hover { opacity: 1; color: var(--accent); }
+        .search-results { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+        .search-item {
+            width: 120px;
+            background: #121218;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.4rem;
+            text-align: center;
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
+        .search-item:hover { border-color: var(--accent); }
+        .search-item img { width: 100%; border-radius: 4px; margin-bottom: 0.3rem; }
+        .footer { text-align: center; padding: 1.5rem; color: var(--text-dim); font-size: 0.8rem; }
+        @media (max-width: 700px) {
+            .draw-card { width: 140px; }
+            .draw-card:hover { transform: scale(1.3); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Tirage au sort Commandants MTG</h1>
+        <p>Tirez 3 commandants au hasard et choisissez celui avec lequel vous construirez votre deck</p>
+    </header>
+
+    <div class="container">
+        <div id="status" class="status info">Le pool de commandants est géré par l'administrateur.</div>
+
+        <!-- VUE JOUEUR -->
+        <div id="view-player">
+            <div class="section">
+                <h2>Commandants restants : <span id="pool-count">0</span></h2>
+                <div class="controls">
+                    <button onclick="drawThree()" id="draw-btn" disabled>Tirer 3 commandants</button>
+                </div>
+                <div id="wheel-container">
+                    <div style="position:relative;display:inline-block;">
+                        <div class="wheel-pointer"></div>
+                        <div id="wheel">
+                            <div id="wheel-inner">Taverne de Zaccharrian</div>
+                        </div>
+                    </div>
+                    <p style="margin-top:0.5rem;color:var(--accent);font-weight:600;">La roue tourne...</p>
+                </div>
+                <div id="draw-area"></div>
+                <p id="draw-hint" class="empty">Cliquez sur le bouton pour tirer 3 commandants au hasard.<br>Survolez une carte pour l'agrandir.</p>
+            </div>
+        </div>
+
+        <!-- VUE ADMIN (cachée par défaut) -->
+        <div id="view-admin" class="hidden">
+            <div class="section">
+                <h2>Administration — Pool de commandants</h2>
+                <div class="controls">
+                    <input type="text" id="admin-search" placeholder="Rechercher un commandant (ex: Atraxa, Korvold...)" onkeydown="if(event.key==='Enter') adminSearch()">
+                    <button onclick="adminSearch()">Rechercher & Ajouter</button>
+                </div>
+                <div id="search-results" class="search-results"></div>
+                <div class="controls" style="margin-top:1rem;">
+                    <button class="secondary" onclick="loadPopular()">Charger les populaires (Scryfall)</button>
+                    <button class="secondary" onclick="clearPool()">Vider le pool</button>
+                    <button class="secondary" onclick="exportData()">Exporter</button>
+                    <button class="secondary" onclick="document.getElementById('import-file').click()">Importer liste</button>
+                    <input type="file" id="import-file" accept=".json,.txt" style="display:none" onchange="importData(event)">
+                </div>
+                <div id="pool-preview" style="margin-top:0.5rem;font-size:0.9rem;color:var(--text-dim);"></div>
+            </div>
+
+            <div class="section">
+                <h2>Inscriptions (<span id="reg-count">0</span>)</h2>
+                <div id="registrations"></div>
+                <div class="controls" style="margin-top:1rem;">
+                    <button class="secondary" onclick="resetRegistrations()">Réinitialiser inscriptions (remettre cartes)</button>
+                    <button class="danger" onclick="resetAll()">Tout effacer</button>
+                    <button class="secondary" onclick="lockAdmin()">Verrouiller admin</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal nom -->
+    <div id="name-modal" class="modal">
+        <div class="modal-content">
+            <h3>Confirmer votre choix</h3>
+            <p id="selected-name" style="margin-bottom:1rem;font-weight:600;"></p>
+            <div class="form-row">
+                <label>Prénom</label>
+                <input type="text" id="firstname" placeholder="Votre prénom">
+            </div>
+            <div class="form-row">
+                <label>Nom</label>
+                <input type="text" id="lastname" placeholder="Votre nom">
+            </div>
+            <div class="controls" style="margin-top:1rem;">
+                <button onclick="confirmChoice()">Valider</button>
+                <button class="secondary" onclick="closeModal()">Annuler</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal mot de passe admin -->
+    <div id="pwd-modal" class="modal">
+        <div class="modal-content">
+            <h3>Accès administrateur</h3>
+            <div class="form-row">
+                <label>Mot de passe</label>
+                <input type="password" id="admin-pwd" placeholder="Mot de passe" onkeydown="if(event.key==='Enter') checkPassword()">
+            </div>
+            <div class="controls" style="margin-top:1rem;">
+                <button onclick="checkPassword()">Entrer</button>
+                <button class="secondary" onclick="document.getElementById('pwd-modal').classList.remove('open')">Annuler</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="admin-link" onclick="document.getElementById('pwd-modal').classList.add('open')">admin</div>
+
+    <footer class="footer">
+        Les joueurs n'ont pas accès à l'administration. Mot de passe par défaut : <strong>admin</strong><br>
+        Images via Scryfall • Données locales
+    </footer>
+
+    
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyC2LIBsuQ6dVRuozTLgOrAnJWCgg-FEnm4",
+            authDomain: "deck-janvier-taverne.firebaseapp.com",
+            databaseURL: "https://deck-janvier-taverne-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "deck-janvier-taverne",
+            storageBucket: "deck-janvier-taverne.firebasestorage.app",
+            messagingSenderId: "29485359621",
+            appId: "1:29485359621:web:d65f437aff2dece86a726c",
+            measurementId: "G-B67E1F3ECV"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+    </script>
+
+    <script>
+        const SCRYFALL = 'https://api.scryfall.com';
+        const ADMIN_PASSWORD = 'admin'; // Changez ce mot de passe si besoin
+        let pool = [];
+        let registrations = [];
+        let currentDraw = [];
+        let selectedIndex = -1;
+        let adminUnlocked = false;
+        let searchResults = [];
+        let hasActiveDraw = false; // true while 3 cards are shown and waiting for choice
+
+        // Pool partagé intégré directement (version française)
+        const SHARED_POOL = [{"id":"8a45a431-af62-4bc5-8fb9-dcbc245a506e","name":"Danitha, Spear of Agony","printed_name":"Danitha, lance d'angoisse","image":"https://cards.scryfall.io/normal/front/8/a/8a45a431-af62-4bc5-8fb9-dcbc245a506e.jpg?1790687353","colors":["B"],"lang":"fr"},{"id":"4034aa02-67eb-44be-af91-7d3459bf2597","name":"Nymris, Oona's Trickster","printed_name":"Nymris, escroc d'Oona","image":"https://cards.scryfall.io/normal/front/4/0/4034aa02-67eb-44be-af91-7d3459bf2597.jpg?1782812402","colors":["B","U"],"lang":"fr"},{"id":"1489817c-fe09-465b-a38d-97b2c4e12610","name":"Traxos, Academy Guardian","printed_name":"Traxos, gardien de l'académie","image":"https://cards.scryfall.io/normal/front/1/4/1489817c-fe09-465b-a38d-97b2c4e12610.jpg?1790687212","colors":["U"],"lang":"fr"},{"id":"adbee0fc-3d4c-43c2-9ec4-42546b80dd4e","name":"Harald, King of Skemfar","printed_name":"Harald, roi de Skemfar","image":"https://cards.scryfall.io/normal/front/a/d/adbee0fc-3d4c-43c2-9ec4-42546b80dd4e.jpg?1782891665","colors":["B","G"],"lang":"fr"},{"id":"8493f073-9683-4a63-aaea-6939cba0ac0e","name":"Marchesa, the Black Rose","printed_name":"Marchesa, la Rose Noire","image":"https://cards.scryfall.io/normal/front/8/4/8493f073-9683-4a63-aaea-6939cba0ac0e.jpg?1782846483","colors":["B","R","U"],"lang":"fr"},{"id":"0589f59f-e401-4fe8-bb06-20cf2ddac218","name":"Judith, the Scourge Diva","printed_name":"Judith, diva du fléau","image":"https://cards.scryfall.io/normal/front/0/5/0589f59f-e401-4fe8-bb06-20cf2ddac218.jpg?1782823290","colors":["B","R"],"lang":"fr"},{"id":"30557b2e-fc12-44e5-b26c-a8cc7d7a3c7b","name":"Kroxa, Titan of Death's Hunger","printed_name":"Kroxa, titan de la Soif de mort","image":"https://cards.scryfall.io/normal/front/3/0/30557b2e-fc12-44e5-b26c-a8cc7d7a3c7b.jpg?1782823267","colors":["B","R"],"lang":"fr"},{"id":"bed4a02d-c626-4031-97ad-fcac101a787c","name":"Grumgully, the Generous","printed_name":"Grumgully, le généreux","image":"https://cards.scryfall.io/normal/front/b/e/bed4a02d-c626-4031-97ad-fcac101a787c.jpg?1782787605","colors":["G","R"],"lang":"fr"},{"id":"88f92efc-7c94-4505-9453-3104d2f24e4c","name":"Dina, Soul Steeper","printed_name":"Dina, macéreuse d'âmes","image":"https://cards.scryfall.io/normal/front/8/8/88f92efc-7c94-4505-9453-3104d2f24e4c.jpg?1782823334","colors":["B","G"],"lang":"fr"},{"id":"bb49768a-9e63-47cb-87af-9038471899de","name":"Lathiel, the Bounteous Dawn","printed_name":"Lathiel, l'Aube de générosité","image":"https://cards.scryfall.io/normal/front/b/b/bb49768a-9e63-47cb-87af-9038471899de.jpg?1782823260","colors":["G","W"],"lang":"fr"},{"id":"b0b76b1a-907a-4923-b80e-ed95d8c1a90b","name":"Kudo, King Among Bears","printed_name":"Kudo, roi parmi les ours","image":"https://cards.scryfall.io/normal/front/b/0/b0b76b1a-907a-4923-b80e-ed95d8c1a90b.jpg?1782791339","colors":["G","W"],"lang":"fr"},{"id":"ad360f2b-6c6c-4c83-842a-b0cf06debe5e","name":"Elsha of the Infinite","printed_name":"Elsha de l'Infini","image":"https://cards.scryfall.io/normal/front/a/d/ad360f2b-6c6c-4c83-842a-b0cf06debe5e.jpg?1782846557","colors":["R","U","W"],"lang":"fr"},{"id":"5e22c81c-d4fe-44e4-a5e7-3ac4312854c7","name":"Alesha, Who Smiles at Death","printed_name":"Alesha, Celle-qui-sourit-devant-la-mort","image":"https://cards.scryfall.io/normal/front/5/e/5e22c81c-d4fe-44e4-a5e7-3ac4312854c7.jpg?1782845908","colors":["B","R","W"],"lang":"fr"},{"id":"1c91010e-a747-48c4-a3cd-fbddf5887d55","name":"Shanna, Purifying Blade","printed_name":"Shanna, lame purificatrice","image":"https://cards.scryfall.io/normal/front/1/c/1c91010e-a747-48c4-a3cd-fbddf5887d55.jpg?1782842860","colors":["G","U","W"],"lang":"fr"},{"id":"f49eec0f-0d0b-4bad-bb7f-a850539f55ad","name":"Ares, God of War","printed_name":"Arès, dieu de la Guerre","image":"https://cards.scryfall.io/normal/front/f/4/f49eec0f-0d0b-4bad-bb7f-a850539f55ad.jpg?1785281350","colors":["B","R"],"lang":"fr"},{"id":"90a2c6e6-b2b9-4429-954b-21f75ddd2f31","name":"Yorvo, Lord of Garenbrig","printed_name":"Yorvo, seigneur de Garenbrig","image":"https://cards.scryfall.io/normal/front/9/0/90a2c6e6-b2b9-4429-954b-21f75ddd2f31.jpg?1782912867","colors":["G"],"lang":"fr"},{"id":"e1d904c3-aa0a-407e-877e-60f83a26ae56","name":"Koth of the Homestead","printed_name":"Koth de la ferme","image":"https://cards.scryfall.io/normal/front/e/1/e1d904c3-aa0a-407e-877e-60f83a26ae56.jpg?1790686556","colors":["W"],"lang":"fr"},{"id":"40acaa4d-7358-4322-9797-a23a85fbb4c3","name":"Arasta of the Endless Web","printed_name":"Arasta de la Toile sans fin","image":"https://cards.scryfall.io/normal/front/4/0/40acaa4d-7358-4322-9797-a23a85fbb4c3.jpg?1782766443","colors":["G"],"lang":"fr"},{"id":"ccbd49a7-d8ce-4e0c-8598-e28e0edeccfe","name":"Jared Carthalion, True Heir","printed_name":"Jared Carthalion, véritable héritier","image":"https://cards.scryfall.io/normal/front/c/c/ccbd49a7-d8ce-4e0c-8598-e28e0edeccfe.jpg?1782895194","colors":["G","R","W"],"lang":"fr"},{"id":"9c45b869-3363-4aef-9d4f-f9369b66f0f7","name":"Mr. Orfeo, the Boulder","printed_name":"M. Orfeo, le Rocher","image":"https://cards.scryfall.io/normal/front/9/c/9c45b869-3363-4aef-9d4f-f9369b66f0f7.jpg?1782854425","colors":["B","G","R"],"lang":"fr"},{"id":"2cc80493-bad3-45d7-af2e-c5c060c30511","name":"Doran, the Siege Tower","printed_name":"Doran, la Tour de siège","image":"https://cards.scryfall.io/normal/front/2/c/2cc80493-bad3-45d7-af2e-c5c060c30511.jpg?1782846573","colors":["B","G","W"],"lang":"fr"},{"id":"18ad2dab-f74d-473a-906a-17e79b5e30cd","name":"Jhoira of the Ghitu","printed_name":"Djoïra des Guitûks","image":"https://cards.scryfall.io/normal/front/1/8/18ad2dab-f74d-473a-906a-17e79b5e30cd.jpg?1782889460","colors":["R","U"],"lang":"fr"},{"id":"e3e3df67-a3e7-458d-9060-ed7fd3624ae4","name":"Svella, Ice Shaper","printed_name":"Svella, modeleuse de glace","image":"https://cards.scryfall.io/normal/front/e/3/e3e3df67-a3e7-458d-9060-ed7fd3624ae4.jpg?1782891595","colors":["G","R"],"lang":"fr"},{"id":"2ea08caa-3c2f-4b0f-8c98-dc08f1bba8e3","name":"Vega, the Watcher","printed_name":"Veiga, le gardien","image":"https://cards.scryfall.io/normal/front/2/e/2ea08caa-3c2f-4b0f-8c98-dc08f1bba8e3.jpg?1782891588","colors":["U","W"],"lang":"fr"},{"id":"4472a697-bea0-4a0f-8605-11127d32c16b","name":"Selvala, Explorer Returned","printed_name":"Selvala, exploratrice sur le retour","image":"https://cards.scryfall.io/normal/front/4/4/4472a697-bea0-4a0f-8605-11127d32c16b.jpg?1782787585","colors":["G","W"],"lang":"fr"}];
+
+        async function loadState() {
+            // Charger depuis Firebase (partagé)
+            try {
+                const snap = await db.ref('state').once('value');
+                const data = snap.val();
+                if (data && Array.isArray(data.pool) && data.pool.length > 0) {
+                    pool = data.pool;
+                    registrations = data.registrations || [];
+                    setStatus('Pool partagé chargé (' + pool.length + ' commandants).', 'success');
+                } else {
+                    // Première fois : initialiser avec le pool intégré
+                    if (typeof SHARED_POOL !== 'undefined' && SHARED_POOL.length > 0) {
+                        pool = SHARED_POOL;
+                        registrations = [];
+                        await db.ref('state').set({ pool, registrations });
+                        setStatus('Pool initialisé (' + pool.length + ' commandants).', 'success');
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+                setStatus('Erreur Firebase. Vérifie les règles.', 'error');
+            }
+            updateUI();
+            if (adminUnlocked) renderAdmin();
+
+            // Écoute en temps réel
+            db.ref('state').on('value', snap => {
+                const data = snap.val();
+                if (data) {
+                    pool = data.pool || [];
+                    registrations = data.registrations || [];
+                    updateUI();
+                    if (adminUnlocked) renderAdmin();
+                }
+            });
+        }
+
+        function saveState() {
+            db.ref('state').set({ pool, registrations }).catch(e => console.error(e));
+        }
+
+        function setStatus(msg, type = 'info') {
+            const el = document.getElementById('status');
+            el.className = 'status ' + type;
+            el.textContent = msg;
+        }
+
+        function updateUI() {
+            document.getElementById('pool-count').textContent = pool.length;
+            const btn = document.getElementById('draw-btn');
+            btn.disabled = pool.length < 3 || hasActiveDraw;
+            btn.textContent = hasActiveDraw ? 'Choisissez un commandant' : 'Tirer 3 commandants';
+            document.getElementById('reg-count').textContent = registrations.length;
+        }
+
+        function getImage(card) {
+            return card.image_uris?.normal ||
+                   card.card_faces?.[0]?.image_uris?.normal ||
+                   'https://via.placeholder.com/200x280/1a1a22/c9a227?text=Pas+d\'image';
+        }
+
+        function checkPassword() {
+            const pwd = document.getElementById('admin-pwd').value;
+            if (pwd === ADMIN_PASSWORD) {
+                adminUnlocked = true;
+                document.getElementById('pwd-modal').classList.remove('open');
+                document.getElementById('admin-pwd').value = '';
+                document.getElementById('view-player').classList.add('hidden');
+                document.getElementById('view-admin').classList.remove('hidden');
+                renderAdmin();
+                setStatus('Mode administrateur activé.', 'success');
+            } else {
+                alert('Mot de passe incorrect.');
+            }
+        }
+
+        function lockAdmin() {
+            adminUnlocked = false;
+            document.getElementById('view-admin').classList.add('hidden');
+            document.getElementById('view-player').classList.remove('hidden');
+            setStatus('Mode joueur.', 'info');
+        }
+
+        async function adminSearch() {
+            const q = document.getElementById('admin-search').value.trim();
+            if (!q) return;
+            setStatus('Recherche...', 'info');
+            try {
+                const url = `${SCRYFALL}/cards/search?q=${encodeURIComponent(q + ' is:commander')}&unique=cards&order=name`;
+                const res = await fetch(url);
+                if (!res.ok) throw new Error();
+                const data = await res.json();
+                searchResults = (data.data || []).slice(0, 8);
+                displaySearchResults();
+                setStatus(`${searchResults.length} résultats. Cliquez pour ajouter.`, 'info');
+            } catch (e) {
+                setStatus('Aucun résultat ou erreur.', 'error');
+                document.getElementById('search-results').innerHTML = '';
+            }
+        }
+
+        function displaySearchResults() {
+            const el = document.getElementById('search-results');
+            el.innerHTML = searchResults.map((card, i) => {
+                const img = getImage(card);
+                return `<div class="search-item" onclick="addFromSearch(${i})">
+                    <img src="${img}" alt="">
+                    <div>${escapeHtml(card.name)}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function addFromSearch(index) {
+            const card = searchResults[index];
+            if (!card) return;
+            if (pool.some(c => c.name === card.name)) {
+                setStatus('Déjà dans le pool.', 'info');
+                return;
+            }
+            pool.push({
+                id: card.id,
+                name: card.name,
+                image: getImage(card),
+                colors: card.color_identity || []
+            });
+            saveState();
+            updateUI();
+            renderAdmin();
+            setStatus(`${card.name} ajouté au pool.`, 'success');
+            document.getElementById('search-results').innerHTML = '';
+            document.getElementById('admin-search').value = '';
+        }
+
+        async function loadPopular() {
+            setStatus('Chargement des commandants populaires...', 'info');
+            try {
+                const url = `${SCRYFALL}/cards/search?q=${encodeURIComponent('is:commander legal:commander t:creature')}&order=edhrec&unique=cards`;
+                const res = await fetch(url);
+                if (!res.ok) throw new Error();
+                const data = await res.json();
+                let added = 0;
+                (data.data || []).forEach(c => {
+                    if (!pool.some(p => p.name === c.name)) {
+                        pool.push({
+                            id: c.id,
+                            name: c.name,
+                            image: getImage(c),
+                            colors: c.color_identity || []
+                        });
+                        added++;
+                    }
+                });
+                saveState();
+                updateUI();
+                renderAdmin();
+                setStatus(`${added} commandants ajoutés. Total : ${pool.length}.`, 'success');
+            } catch (e) {
+                setStatus('Erreur de chargement.', 'error');
+            }
+        }
+
+        function renderAdmin() {
+            const preview = document.getElementById('pool-preview');
+            if (!pool.length) {
+                preview.innerHTML = 'Pool vide.';
+            } else {
+                preview.innerHTML = `${pool.length} commandants : ${pool.slice(0, 6).map(c => c.name).join(', ')}${pool.length > 6 ? '…' : ''}`;
+            }
+            const regs = document.getElementById('registrations');
+            if (!registrations.length) {
+                regs.innerHTML = '<div class="empty">Aucune inscription.</div>';
+            } else {
+                regs.innerHTML = registrations.map((r, i) => `
+                    <div class="reg-item">
+                        <img src="${r.commander.image}" alt="">
+                        <div style="flex:1;">
+                            <div style="font-weight:700;">${escapeHtml(r.firstname)} ${escapeHtml(r.lastname)}</div>
+                            <div style="font-size:0.85rem;color:#aaa;">${escapeHtml(r.commander.name)}</div>
+                        </div>
+                        <button class="secondary" style="padding:0.3rem 0.6rem;font-size:0.8rem;" onclick="removeReg(${i})">Retirer</button>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c => ({'&':'&','<':'<','>':'>','"':'"',"'":'&#39;'}[c]));
+        }
+
+        function drawThree() {
+            if (hasActiveDraw) {
+                setStatus('Vous devez d\'abord choisir parmi les 3 commandants tirés.', 'error');
+                return;
+            }
+            if (pool.length < 3) {
+                setStatus('Il faut au moins 3 commandants dans le pool.', 'error');
+                return;
+            }
+            const shuffled = [...pool].sort(() => Math.random() - 0.5);
+            currentDraw = shuffled.slice(0, 3);
+            hasActiveDraw = true;
+
+            // Animation de roue pour le fun
+            const wheelContainer = document.getElementById('wheel-container');
+            const wheel = document.getElementById('wheel');
+            const wheelInner = document.getElementById('wheel-inner');
+            wheelContainer.style.display = 'block';
+            wheel.classList.add('spinning');
+            document.getElementById('draw-area').innerHTML = '';
+            document.getElementById('draw-hint').style.display = 'none';
+            document.getElementById('draw-btn').disabled = true;
+
+            let ticks = 0;
+            const maxTicks = 50 + Math.floor(Math.random() * 30);
+            const namesPool = pool.map(c => c.name);
+            const interval = setInterval(() => {
+                const randomName = namesPool[Math.floor(Math.random() * namesPool.length)];
+                wheelInner.textContent = randomName;
+                ticks++;
+                if (ticks >= maxTicks) {
+                    clearInterval(interval);
+                    wheel.classList.remove('spinning');
+                    wheelInner.textContent = 'C\'est parti !';
+                    setTimeout(() => {
+                        wheelContainer.style.display = 'none';
+                        renderDraw();
+                        setStatus('3 commandants tirés. Survolez pour agrandir, cliquez pour choisir. Un seul tirage par joueur.', 'info');
+                        updateUI();
+                    }, 700);
+                }
+            }, 70);
+        }
+
+        function renderDraw() {
+            const el = document.getElementById('draw-area');
+            el.innerHTML = currentDraw.map((c, i) => `
+                <div class="draw-card" onclick="selectCard(${i})">
+                    <img src="${c.image}" alt="${escapeHtml(c.name)}">
+                    <div class="name">${escapeHtml(c.name)}</div>
+                </div>
+            `).join('');
+        }
+
+        function selectCard(index) {
+            selectedIndex = index;
+            document.getElementById('selected-name').textContent = currentDraw[index].name;
+            document.getElementById('firstname').value = '';
+            document.getElementById('lastname').value = '';
+            document.getElementById('name-modal').classList.add('open');
+        }
+
+        function closeModal() {
+            document.getElementById('name-modal').classList.remove('open');
+            selectedIndex = -1;
+        }
+
+        async function confirmChoice() {
+            const first = document.getElementById('firstname').value.trim();
+            const last = document.getElementById('lastname').value.trim();
+            if (!first || !last) {
+                alert('Veuillez entrer prénom et nom.');
+                return;
+            }
+            if (selectedIndex < 0) return;
+            const selected = currentDraw[selectedIndex];
+
+            const ref = db.ref('state');
+            const result = await ref.transaction(current => {
+                if (!current) current = { pool: [], registrations: [] };
+                const stillAvailable = (current.pool || []).some(c => c.name === selected.name);
+                if (!stillAvailable) return; // abort
+                current.pool = (current.pool || []).filter(c => c.name !== selected.name);
+                current.registrations = current.registrations || [];
+                current.registrations.push({
+                    firstname: first,
+                    lastname: last,
+                    commander: selected,
+                    date: new Date().toISOString()
+                });
+                return current;
+            });
+
+            if (!result.committed) {
+                alert("Ce commandant vient d'être pris par un autre joueur. Tirez à nouveau.");
+                currentDraw = [];
+                hasActiveDraw = false;
+                document.getElementById('draw-area').innerHTML = '';
+                document.getElementById('draw-hint').style.display = 'block';
+                document.getElementById('draw-hint').textContent = "Ce commandant n'est plus disponible. Tirez à nouveau.";
+                closeModal();
+                setStatus('Commandant déjà pris. Tirez à nouveau.', 'error');
+                return;
+            }
+
+            currentDraw = [];
+            hasActiveDraw = false;
+            document.getElementById('draw-area').innerHTML = '';
+            document.getElementById('draw-hint').style.display = 'block';
+            document.getElementById('draw-hint').textContent = 'Choix enregistré ! Le prochain joueur peut tirer ses 3 commandants.';
+            closeModal();
+            setStatus(`${selected.name} attribué à ${first} ${last}. Les 2 autres sont retournés dans le pool.`, 'success');
+        }
+
+        function removeReg(index) {
+            if (!confirm('Supprimer cette inscription et remettre le commandant dans le pool ?')) return;
+            const reg = registrations[index];
+            if (!pool.some(c => c.name === reg.commander.name)) pool.push(reg.commander);
+            registrations.splice(index, 1);
+            saveState();
+            updateUI();
+            renderAdmin();
+        }
+
+        function clearPool() {
+            if (!confirm('Vider le pool ?')) return;
+            pool = [];
+            saveState();
+            updateUI();
+            renderAdmin();
+        }
+
+        function resetRegistrations() {
+            if (!confirm('Remettre tous les commandants choisis dans le pool ?')) return;
+            registrations.forEach(r => {
+                if (!pool.some(c => c.name === r.commander.name)) pool.push(r.commander);
+            });
+            registrations = [];
+            hasActiveDraw = false;
+            currentDraw = [];
+            document.getElementById('draw-area').innerHTML = '';
+            saveState();
+            updateUI();
+            renderAdmin();
+        }
+
+        function resetAll() {
+            if (!confirm('Tout effacer ?')) return;
+            pool = [];
+            registrations = [];
+            hasActiveDraw = false;
+            currentDraw = [];
+            localStorage.removeItem('mtgPoolV3');
+            localStorage.removeItem('mtgRegsV3');
+            document.getElementById('draw-area').innerHTML = '';
+            updateUI();
+            renderAdmin();
+        }
+
+        function exportData() {
+            const data = { pool, registrations };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'commandants-mtg.json';
+            a.click();
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (Array.isArray(data.pool)) pool = data.pool;
+                    if (Array.isArray(data.registrations)) registrations = data.registrations;
+                    saveState();
+                    updateUI();
+                    renderAdmin();
+                    setStatus('Import réussi.', 'success');
+                } catch (err) {
+                    // Fallback: list of names, one per line
+                    const lines = e.target.result.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+                    if (lines.length) {
+                        alert('Fichier texte détecté. Ajout des noms (images à charger manuellement si besoin).');
+                        // Simple name-only add (no images until searched)
+                        lines.forEach(name => {
+                            if (!pool.some(c => c.name === name)) {
+                                pool.push({ id: name, name, image: '', colors: [] });
+                            }
+                        });
+                        saveState();
+                        updateUI();
+                        renderAdmin();
+                    } else {
+                        setStatus('Fichier invalide.', 'error');
+                    }
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        loadState();
+    </script>
+</body>
+</html>
